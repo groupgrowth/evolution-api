@@ -1,0 +1,39 @@
+name: Deploy Evolution Backend Manager
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Deploy via SSH
+        env:
+          EC2_HOST: ${{ secrets.EC2_HOST }}
+          EC2_USER: ${{ secrets.EC2_USER }}
+          EC2_KEY: ${{ secrets.EC2_SSH_PRIVATE_KEY }}
+          VARS_SECS: ${{ secrets.SECS }}
+        run: |
+          echo "$EC2_KEY" > key.pem
+          chmod 600 key.pem
+          ssh -o StrictHostKeyChecking=no -i key.pem $EC2_USER@$EC2_HOST << 'EOF'
+            sudo rm -rf /var/www/typescript_app
+            sudo mkdir -p /var/www/typescript_app
+            sudo chown ubuntu:www-data /var/www/typescript_app
+            sudo chmod 775 /var/www/typescript_app
+          EOF
+
+          rsync -e "ssh -o StrictHostKeyChecking=no -i key.pem" -avz . $EC2_USER@$EC2_HOST:/var/www/typescript_app/
+
+          ssh -o StrictHostKeyChecking=no -i key.pem $EC2_USER@$EC2_HOST << EOF
+            cd /var/www/typescript_app
+            echo "$SECS" > .env
+            
+            sudo systemctl restart typescript_app.service
+          EOF
