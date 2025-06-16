@@ -6,12 +6,42 @@ on:
       - main
 
 jobs:
-  deploy:
+  build-and-deploy:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout
+      - name: Checkout code
         uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install dependencies (ci)
+        run: npm ci
+
+      - name: Lint and Type Check
+        run: |
+          npm run lint:check
+          tsc --noEmit
+
+      - name: Build (tsup)
+        run: npm run build
+
+      - name: Prisma Generate
+        run: npm run db:generate
+
+      # Cria apenas o artefato essencial para deploy
+      - name: Prepare distribution artifact
+        run: |
+          mkdir -p deploy_dist
+          cp -r dist/ package.json package-lock.json deploy_dist/
+          # .env será criado no destino
+          # Adicione outros arquivos ESTÁTICOS necessários (ex: public/, prisma/)
+          cp -r prisma deploy_dist/
+          cp -r public deploy_dist/
+        shell: bash
 
       - name: Deploy via SSH
         env:
@@ -22,18 +52,27 @@ jobs:
         run: |
           echo "$EC2_KEY" > key.pem
           chmod 600 key.pem
+
+          # Limpa e prepara o diretório
           ssh -o StrictHostKeyChecking=no -i key.pem $EC2_USER@$EC2_HOST << 'EOF'
             sudo rm -rf /var/www/typescript_app
             sudo mkdir -p /var/www/typescript_app
-            sudo chown ubuntu:www-data /var/www/typescript_app
+            sudo chown $EC2_USER:www-data /var/www/typescript_app
             sudo chmod 775 /var/www/typescript_app
           EOF
 
-          rsync -e "ssh -o StrictHostKeyChecking=no -i key.pem" -avz . $EC2_USER@$EC2_HOST:/var/www/typescript_app/
+          # Rsync apenas deploy_dist (build + lock + config)
+          rsync -e "ssh -o StrictHostKeyChecking=no -i key.pem" -avz ./deploy_dist/ $EC2_USER@$EC2_HOST:/var/www/typescript_app/
 
+          # .env via variável de segredo
           ssh -o StrictHostKeyChecking=no -i key.pem $EC2_USER@$EC2_HOST << EOF
             cd /var/www/typescript_app
             echo "$SECS" > .env
-            
+            # Instala dependências só se não existirem (ideal para cold deploy)
+            if [ ! -d "node_modules" ]; then
+              npm ci --omit=dev
+            fi
+            # Prisma generate se necessário (mas normalmente já feito no build)
+            # npm run db:generate
             sudo systemctl restart typescript_app.service
           EOF
