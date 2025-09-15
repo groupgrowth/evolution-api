@@ -6,45 +6,56 @@ services:
       dockerfile: Dockerfile
     restart: always
     depends_on:
-      - evo_redis
-      - evo_postgres
+      evo_redis:
+        condition: service_healthy
+      evo_postgres:
+        condition: service_healthy
     ports:
-      - 8080:8080
+      - "8080:8080"
     volumes:
       - evolution_instances:/evolution/instances
-    networks:
-      - evolution-net
     env_file:
       - .env
+    networks:
+      - evolution-net
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:8080/manager/health',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
 
   evo_redis:
-    image: redis:latest
-    networks:
-      - evolution-net
+    image: redis:7-alpine
     container_name: evo_redis
-    command: >
-      redis-server --port 6379 --appendonly yes
+    command: ["redis-server","--port","6379","--appendonly","yes"]
     volumes:
       - evolution_redis:/data
-    ports:
-      - "6379"
-
-  evo_postgres:
-    container_name: evo_postgres
-    image: postgres:15
     networks:
       - evolution-net
-    command: ["postgres", "-c", "max_connections=1000", "-c", "listen_addresses=*"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+
+  evo_postgres:
+    image: postgres:15-alpine
+    container_name: evo_postgres
+    command: ["postgres","-c","max_connections=1000","-c","listen_addresses=*"]
     restart: always
-    ports:
-      - "5432"
     environment:
-      - POSTGRES_USER=user
-      - POSTGRES_PASSWORD=pass
-      - POSTGRES_DB=evolution
-      - POSTGRES_HOST_AUTH_METHOD=trust
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:-evolution}
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    networks:
+      - evolution-net
+    healthcheck:
+      test: ["CMD-SHELL","pg_isready -U ${POSTGRES_USER:-user} -d ${POSTGRES_DB:-evolution}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
 
 volumes:
   evolution_instances:

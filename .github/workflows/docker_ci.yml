@@ -45,7 +45,60 @@ jobs:
           cp -r public deploy_dist/
         shell: bash
 
-      - name: Deploy via SSH
+      - name: Deploy via SSH (Docker Compose)
+        env:
+          SSH_HOST: ${{ secrets.SSH_HOST_32GB }}
+          SSH_USER: ${{ secrets.SSH_USER_32GB }}
+          EC2_KEY:  ${{ secrets.SSH_KEY_32GB }}
+          # Prefer storing your .env as a base64 secret to preserve newlines exactly
+          ENV_FILE_B64: ${{ secrets.ENV_FILE_B64 }}
+        run: |
+          set -euo pipefail
+          echo "$EC2_KEY" > key.pem
+          chmod 600 key.pem
+          REMOTE_DIR="/opt/apps/evolution-api"
+
+          ssh -o StrictHostKeyChecking=no -i key.pem "$SSH_USER@$SSH_HOST" <<'SSHCMDS'
+            set -euo pipefail
+            sudo mkdir -p /opt/apps/evolution-api
+            sudo chown -R "$USER":"$USER" /opt/apps/evolution-api
+            command -v docker >/dev/null 2>&1 || { echo "Docker is required"; exit 1; }
+            docker compose version >/dev/null 2>&1 || { echo "Docker Compose plugin is required"; exit 1; }
+          SSHCMDS
+          # Sync repo (exclude local cruft; we build on server)
+          rsync -az --delete \
+            --exclude '.git' \
+            --exclude '.github' \
+            --exclude 'node_modules' \
+            --exclude 'dist' \
+            --exclude '.env' \
+            --exclude 'deploy_dist' \
+            -e "ssh -o StrictHostKeyChecking=no -i key.pem" \
+            ./ "$SSH_USER@$SSH_HOST:$REMOTE_DIR/"
+
+          # Write .env and bring up with Compose
+          # (ENV_FILE_B64 should be your .env base64-encoded)
+          ssh -o StrictHostKeyChecking=no -i key.pem "$SSH_USER@$SSH_HOST" "bash -s" <<'SSHCMDS'
+            set -euo pipefail
+            cd /opt/apps/evolution-api
+
+            if [ -n "${ENV_FILE_B64:-}" ]; then
+              echo "$ENV_FILE_B64" | base64 -d > .env
+            elif [ -n "${ENV:-}" ]; then
+              # fallback: multi-line secret not base64
+              printf '%s' "$ENV" > .env
+            fi
+
+            # Optional: show what's about to run
+            docker compose config >/dev/null
+            # Recreate with latest code
+            docker compose down
+            docker compose up -d --build --remove-orphans
+            # Quick health check
+            docker compose ps
+          SSHCMDS
+
+      # - name: Deploy via SSH
         env:
           SSH_HOST: ${{ secrets.SSH_HOST_32GB }}
           SSH_USER: ${{ secrets.SSH_USER_32GB }}
