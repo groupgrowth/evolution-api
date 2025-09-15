@@ -71,14 +71,13 @@ jobs:
             --exclude '.github' \
             --exclude 'node_modules' \
             --exclude 'dist' \
-            --exclude '.env' \
             --exclude 'deploy_dist' \
             -e "ssh -o StrictHostKeyChecking=no -i key.pem" \
             ./ "$SSH_USER@$SSH_HOST:$REMOTE_DIR/"
 
           # Write .env and bring up with Compose
           # (ENV_FILE_B64 should be your .env base64-encoded)
-          ssh -o StrictHostKeyChecking=no -i key.pem "$SSH_USER@$SSH_HOST" "bash -s" <<'SSHCMDS'
+          ssh -o StrictHostKeyChecking=no -i key.pem "$SSH_USER@$SSH_HOST" "ENV_FILE_B64='${ENV_FILE_B64:-}' bash -s" <<'SSHCMDS'
             set -euo pipefail
             cd /opt/apps/evolution-api
 
