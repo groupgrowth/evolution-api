@@ -16,10 +16,14 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 18
+          node-version: 20
 
       - name: Install dependencies (ci)
         run: npm ci
+
+      # MOVER PRISMA GENERATE PARA ANTES DOS CHECKS
+      - name: Prisma Generate
+        run: npm run db:generate
 
       - name: Lint
         run: npm run lint:check
@@ -29,9 +33,6 @@ jobs:
 
       - name: Build (tsup)
         run: npm run build
-
-      - name: Prisma Generate
-        run: npm run db:generate
 
       # Cria apenas o artefato essencial para deploy
       - name: Prepare distribution artifact
