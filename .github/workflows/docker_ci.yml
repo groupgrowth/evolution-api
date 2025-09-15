@@ -45,29 +45,29 @@ jobs:
 
       - name: Deploy via SSH
         env:
-          EC2_HOST: ${{ secrets.EC2_HOST }}
-          EC2_USER: ${{ secrets.EC2_USER }}
-          EC2_KEY: ${{ secrets.EC2_SSH_PRIVATE_KEY }}
-          SECS: ${{ secrets.SECS }}
+          SSH_HOST: ${{ secrets.SSH_HOST_32GB }}
+          SSH_USER: ${{ secrets.SSH_USER_32GB }}
+          EC2_KEY: ${{ secrets.SSH_KEY_32GB }}
+          ENV: ${{ secrets.ENV_FILE }}
         run: |
           echo "$EC2_KEY" > key.pem
           chmod 600 key.pem
 
           # Limpa e prepara o diretório
-          ssh -o StrictHostKeyChecking=no -i key.pem $EC2_USER@$EC2_HOST << 'EOF'
+          ssh -o StrictHostKeyChecking=no -i key.pem $SSH_USER@$SSH_HOST << 'EOF'
             sudo rm -rf /var/www/typescript_app
             sudo mkdir -p /var/www/typescript_app
-            sudo chown $EC2_USER:www-data /var/www/typescript_app
+            sudo chown $SSH_USER:www-data /var/www/typescript_app
             sudo chmod 775 /var/www/typescript_app
           EOF
 
           # Rsync apenas deploy_dist (build + lock + config)
-          rsync -e "ssh -o StrictHostKeyChecking=no -i key.pem" -avz ./deploy_dist/ $EC2_USER@$EC2_HOST:/var/www/typescript_app/
+          rsync -e "ssh -o StrictHostKeyChecking=no -i key.pem" -avz ./deploy_dist/ $SSH_USER@$SSH_HOST:/var/www/typescript_app/
 
           # .env via variável de segredo
-          ssh -o StrictHostKeyChecking=no -i key.pem $EC2_USER@$EC2_HOST << EOF
+          ssh -o StrictHostKeyChecking=no -i key.pem $SSH_USER@$SSH_HOST << EOF
             cd /var/www/typescript_app
-            echo "$SECS" > .env
+            echo "$ENV" > .env
             # Instala dependências só se não existirem (ideal para cold deploy)
             if [ ! -d "node_modules" ]; then
               npm ci --omit=dev
