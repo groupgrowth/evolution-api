@@ -9,9 +9,10 @@
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue)](./LICENSE)
 [![Support](https://img.shields.io/badge/Donation-picpay-green)](https://app.picpay.com/user/davidsongomes1998)
 [![Sponsors](https://img.shields.io/badge/Github-sponsor-orange)](https://github.com/sponsors/EvolutionAPI)
+[![Deploy Evolution Backend Manager](https://github.com/groupgrowth/evolution-api/actions/workflows/docker_ci.yml/badge.svg)](https://github.com/groupgrowth/evolution-api/actions/workflows/docker_ci.yml)
 
 </div>
-  
+
 <div align="center"><img src="./public/images/cover.png"></div>
 
 ## Evolution API
