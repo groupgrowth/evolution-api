@@ -70,7 +70,7 @@ jobs:
             --exclude '.git' \
             --exclude '.github' \
             --exclude 'node_modules' \
-            --exclude 'dist' \
+            --exclude '/dist' \
             --exclude 'deploy_dist' \
             -e "ssh -o StrictHostKeyChecking=no -i key.pem" \
             ./ "$SSH_USER@$SSH_HOST:$REMOTE_DIR/"
